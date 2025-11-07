@@ -542,10 +542,15 @@ const Step3Confirmation: React.FC<{ onReset: () => void, themeProps: any, t: any
         return phoneE164.slice(0, -7) + '••• •' + last4;
     };
 
+    const isAutoConfirm = settings.reservationMode === 'auto';
+    const titleText = isAutoConfirm ? t.step3TitleConfirmed : t.step3Title;
+    const bodyText = isAutoConfirm ? t.step3BodyConfirmed : t.step3Body;
+
+
     return (
         <div className={`bg-[var(--color-surface)] p-8 ${themeProps.radiusClass} ${themeProps.shadowClass} border border-gray-100 text-center`}>
-            <h2 className="text-2xl font-bold" style={{ color: 'var(--color-success)' }}>{t.step3Title}</h2>
-            <p className="text-[var(--color-text-primary)] mt-4">{t.step3Body}</p>
+            <h2 className="text-2xl font-bold" style={{ color: 'var(--color-success)' }}>{titleText}</h2>
+            <p className="text-[var(--color-text-primary)] mt-4">{bodyText}</p>
             <p className="text-sm text-gray-500 mt-2">{t.emailConfirmationSent}</p>
             
             {submittedData && (
