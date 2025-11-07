@@ -16,6 +16,7 @@ import ArrowDownIcon from '../../../../components/icons/ArrowDownIcon';
 import EyeSlashIcon from '../../../../components/icons/EyeSlashIcon';
 import EyeIcon from '../../../../components/icons/EyeIcon';
 import { sendEmail, createNewScheduleNotificationEmail } from '../../../core/api/emailService';
+import ColorPicker from '../common/ColorPicker';
 
 // Helper function to calculate shift duration in hours
 const calculateShiftDuration = (shift: Shift, dailyClosingTime?: string | null): number => {
@@ -316,7 +317,6 @@ const DEFAULT_EXPORT_SETTINGS: ExportStyleSettings = {
     fontSizeCell: 14,
     fontSizeHeader: 16,
     useFullNameForDays: true,
-    lastUsedColors: ['#FFFFFF', '#F1F5F9', '#E2E8F0', '#CBD5E1', '#9CA3AF', '#334155'],
 };
 
 const adjustColor = (hex: string, percent: number): string => {
@@ -337,44 +337,6 @@ const adjustColor = (hex: string, percent: number): string => {
 const hexToRgb = (hex: string): { r: number, g: number, b: number } | null => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
-};
-
-const hexToHsv = (hex: string): { h: number, s: number, v: number } => {
-    let { r, g, b } = hexToRgb(hex) || { r: 0, g: 0, b: 0 };
-    r /= 255; g /= 255; b /= 255;
-    let max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h = 0, s = 0, v = max;
-    let d = max - min;
-    s = max === 0 ? 0 : d / max;
-    if (max !== min) {
-        switch (max) {
-            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-            case g: h = (b - r) / d + 2; break;
-            case b: h = (r - g) / d + 4; break;
-        }
-        h /= 6;
-    }
-    return { h: h * 360, s: s * 100, v: v * 100 };
-};
-
-const hsvToHex = (h: number, s: number, v: number): string => {
-    s /= 100; v /= 100;
-    let i = Math.floor((h / 360) * 6);
-    let f = (h / 360) * 6 - i;
-    let p = v * (1 - s);
-    let q = v * (1 - f * s);
-    let t = v * (1 - (1 - f) * s);
-    let r = 0, g = 0, b = 0;
-    switch (i % 6) {
-        case 0: r = v; g = t; b = p; break;
-        case 1: r = q; g = v; b = p; break;
-        case 2: r = p; g = v; b = t; break;
-        case 3: r = p; g = q; b = v; break;
-        case 4: r = t; g = p; b = v; break;
-        case 5: r = v; g = p; b = q; break;
-    }
-    const toHex = (c: number) => ('0' + Math.round(c * 255).toString(16)).slice(-2);
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
 const getContrastingTextColor = (hex: string): '#FFFFFF' | '#000000' => {
@@ -404,86 +366,12 @@ const getContrastRatio = (hex1: string, hex2: string) => {
     return (brightest + 0.05) / (darkest + 0.05);
 };
 
-// --- NEW: Color Picker Popup Component ---
-const ColorPickerPopup: FC<{
-    color: string;
-    onChange: (newColor: string) => void;
-    onClose: () => void;
-    lastUsedColors: string[];
-}> = ({ color, onChange, onClose, lastUsedColors }) => {
-    const popupRef = useRef<HTMLDivElement>(null);
-    const [hsv, setHsv] = useState(() => hexToHsv(color));
-
-    useEffect(() => {
-        setHsv(hexToHsv(color));
-    }, [color]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
-
-    const handleSliderChange = (part: 'h' | 's' | 'v', value: number) => {
-        const newHsv = { ...hsv, [part]: value };
-        setHsv(newHsv);
-        onChange(hsvToHex(newHsv.h, newHsv.s, newHsv.v));
-    };
-
-    const hueGradient = `linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)`;
-    const saturationGradient = `linear-gradient(to right, #fff, ${hsvToHex(hsv.h, 100, 100)})`;
-    const valueGradient = `linear-gradient(to right, #000, ${hsvToHex(hsv.h, 100, 100)})`;
-
-    return (
-        <div ref={popupRef} className="absolute z-20 w-72 bg-white rounded-lg shadow-2xl border p-4">
-            <div className="w-full h-20 rounded mb-4" style={{ backgroundColor: color }}></div>
-            <div className="space-y-3">
-                <div>
-                    <label className="text-xs font-semibold text-gray-600">Színárnyalat</label>
-                    <div className="h-6 rounded-full" style={{ background: hueGradient }}>
-                        <input type="range" min="0" max="360" value={hsv.h} onChange={e => handleSliderChange('h', +e.target.value)} className="w-full h-full slider-thumb" />
-                    </div>
-                </div>
-                <div>
-                    <label className="text-xs font-semibold text-gray-600">Telítettség</label>
-                    <div className="h-6 rounded-full" style={{ background: saturationGradient }}>
-                        <input type="range" min="0" max="100" value={hsv.s} onChange={e => handleSliderChange('s', +e.target.value)} className="w-full h-full slider-thumb" />
-                    </div>
-                </div>
-                <div>
-                    <label className="text-xs font-semibold text-gray-600">Fényerő</label>
-                    <div className="h-6 rounded-full" style={{ background: valueGradient }}>
-                        <input type="range" min="0" max="100" value={hsv.v} onChange={e => handleSliderChange('v', +e.target.value)} className="w-full h-full slider-thumb" />
-                    </div>
-                </div>
-            </div>
-            <div className="mt-4 pt-3 border-t">
-                <h4 className="text-xs font-semibold text-gray-600 mb-2">Utoljára használt</h4>
-                <div className="flex flex-wrap gap-2">
-                    {(lastUsedColors || []).map((c, i) => (
-                        <button key={i} onClick={() => onChange(c)} className="h-7 w-7 rounded-full border-2 border-white shadow shrink-0" style={{ backgroundColor: c }} title={c}></button>
-                    ))}
-                </div>
-            </div>
-            <style>{`
-                .slider-thumb { -webkit-appearance: none; appearance: none; width: 100%; height: 100%; background: transparent; cursor: pointer; }
-                .slider-thumb::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; background: #fff; border-radius: 50%; border: 2px solid #ccc; box-shadow: 0 0 4px rgba(0,0,0,0.2); }
-                .slider-thumb::-moz-range-thumb { width: 24px; height: 24px; background: #fff; border-radius: 50%; border: 2px solid #ccc; box-shadow: 0 0 4px rgba(0,0,0,0.2); }
-            `}</style>
-        </div>
-    );
-};
 
 // --- Export Settings Panel Component ---
 const ExportSettingsPanel: FC<{
     settings: ExportStyleSettings;
     setSettings: React.Dispatch<React.SetStateAction<ExportStyleSettings>>;
 }> = ({ settings, setSettings }) => {
-    const [activeColorPicker, setActiveColorPicker] = useState<keyof ExportStyleSettings | null>(null);
 
     const handleColorChange = (key: keyof ExportStyleSettings, value: string) => {
         setSettings(prev => ({...prev, [key]: value}));
@@ -519,20 +407,12 @@ const ExportSettingsPanel: FC<{
 
 
     const ColorInput: FC<{id: keyof ExportStyleSettings, label: string}> = ({id, label}) => (
-        <div className="relative">
-            <label className="block text-sm">{label}</label>
-            <button type="button" onClick={() => setActiveColorPicker(id)} className="w-full h-10 p-1 border rounded-lg flex items-center justify-between text-sm px-2" style={{ backgroundColor: settings[id] as string, color: getContrastingTextColor(settings[id] as string) }}>
-                <span>{settings[id] as string}</span>
-                <div className="w-6 h-6 rounded border border-gray-400" style={{ backgroundColor: settings[id] as string }}></div>
-            </button>
-            {activeColorPicker === id && (
-                <ColorPickerPopup
-                    color={settings[id] as string}
-                    onChange={(newColor) => handleColorChange(id, newColor)}
-                    onClose={() => setActiveColorPicker(null)}
-                    lastUsedColors={settings.lastUsedColors}
-                />
-            )}
+        <div>
+            <label className="block text-sm font-medium text-gray-700">{label}</label>
+            <ColorPicker
+                value={settings[id] as string}
+                onChange={(newColor) => handleColorChange(id, newColor)}
+            />
         </div>
     );
 
@@ -859,26 +739,11 @@ export const BeosztasApp: FC<BeosztasAppProps> = ({ schedule, requests, currentU
         try {
             const settingsDocRef = doc(db, 'unit_export_settings', unitId);
             
-            const currentSettingsColors = [
-                exportSettings.zebraColor,
-                exportSettings.nameColumnColor,
-                exportSettings.dayHeaderBgColor,
-                exportSettings.categoryHeaderBgColor,
-            ].filter(c => c && c.startsWith('#'));
-
-            const docSnap = await getDoc(settingsDocRef);
-            const existingColors = docSnap.exists() ? docSnap.data().lastUsedColors || [] : [];
-            
-            const updatedLastUsedColors = [
-                ...new Set([...currentSettingsColors, ...existingColors])
-            ].slice(0, 12);
-
             const settingsToSave = {
                 ...exportSettings,
                 categoryHeaderTextColor: getContrastingTextColor(exportSettings.categoryHeaderBgColor), // Save calculated color
-                lastUsedColors: updatedLastUsedColors
             };
-
+            
             await setDoc(settingsDocRef, settingsToSave);
 
             alert("Exportálási beállítások mentve ehhez az egységhez!");

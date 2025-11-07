@@ -7,6 +7,7 @@ import ArrowUpIcon from '../../../../components/icons/ArrowUpIcon';
 import ArrowDownIcon from '../../../../components/icons/ArrowDownIcon';
 import TrashIcon from '../../../../components/icons/TrashIcon';
 import PencilIcon from '../../../../components/icons/PencilIcon';
+import ColorPicker from '../common/ColorPicker';
 
 interface ReservationSettingsModalProps {
     unitId: string;
@@ -506,11 +507,8 @@ const ThemeStyleTab: FC<{ settings: ReservationSetting, setSettings: React.Dispa
 
 const ColorInput: FC<{label: string, color: string, onChange: (c: string) => void}> = ({ label, color, onChange }) => (
     <div>
-        <label className="text-sm font-medium">{label}</label>
-        <div className="flex items-center gap-2 mt-1">
-            <input type="color" value={color} onChange={e => onChange(e.target.value)} className="w-8 h-8 rounded border p-0.5" />
-            <input type="text" value={color} onChange={e => onChange(e.target.value)} className="w-full p-1 border rounded" />
-        </div>
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <ColorPicker value={color} onChange={onChange} />
     </div>
 );
 

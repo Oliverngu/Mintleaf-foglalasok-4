@@ -29,8 +29,6 @@ export interface ExportStyleSettings {
   fontSizeHeader: number; // 14-18
   // Layout
   useFullNameForDays: boolean;
-  // New
-  lastUsedColors: string[];
 }
 
 
