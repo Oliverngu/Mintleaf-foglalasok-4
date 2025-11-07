@@ -19,7 +19,6 @@ const DEFAULT_THEME: ThemeSettings = {
     radius: 'lg', elevation: 'mid', typographyScale: 'M'
 };
 
-// FIX: Updated DEFAULT_GUEST_FORM to use the new `customSelects` structure.
 const DEFAULT_GUEST_FORM: GuestFormSettings = {
     customSelects: [
         { id: 'occasion', label: 'Alkalom', options: ['Brunch', 'Ebéd', 'Vacsora', 'Születésnap', 'Italozás', 'Egyéb'] },
@@ -28,6 +27,44 @@ const DEFAULT_GUEST_FORM: GuestFormSettings = {
 };
 
 type SettingsTab = 'általános' | 'űrlap' | 'téma';
+
+// --- COLOR UTILITIES ---
+function hexToRgb(hex: string): {r: number, g: number, b: number} | null {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+}
+function getLuminance(r: number, g: number, b: number): number {
+    const a = [r, g, b].map(v => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+}
+function getContrastRatio(color1: string, color2: string): number {
+    const rgb1 = hexToRgb(color1);
+    const rgb2 = hexToRgb(color2);
+    if (!rgb1 || !rgb2) return 1;
+    const lum1 = getLuminance(rgb1.r, rgb1.g, rgb1.b);
+    const lum2 = getLuminance(rgb2.r, rgb2.g, rgb2.b);
+    return (Math.max(lum1, lum2) + 0.05) / (Math.min(lum1, lum2) + 0.05);
+}
+
+const getContrastingTextColors = (hex: string): { primary: string; secondary: string } => {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return { primary: '#1f2937', secondary: '#6b7280' }; // Default dark text
+
+    // Using YIQ formula to determine brightness
+    const yiq = ((rgb.r * 299) + (rgb.g * 587) + (rgb.b * 114)) / 1000;
+    
+    if (yiq >= 128) {
+        // Background is light, use dark text
+        return { primary: '#1f2937', secondary: '#6b7280' };
+    } else {
+        // Background is dark, use light text
+        return { primary: '#ffffff', secondary: '#d1d5db' };
+    }
+};
+
 
 const ReservationSettingsModal: FC<ReservationSettingsModalProps> = ({ unitId, onClose }) => {
     const [settings, setSettings] = useState<ReservationSetting | null>(null);
@@ -94,7 +131,6 @@ const ReservationSettingsModal: FC<ReservationSettingsModalProps> = ({ unitId, o
         if (!settings) return;
         setIsSaving(true);
         try {
-            // FIX: Clean up old properties before saving to Firestore.
             const { occasionOptions, heardFromOptions, ...cleanGuestForm } = settings.guestForm as any;
             const settingsToSave = {
                 ...settings,
@@ -213,7 +249,6 @@ const GeneralSettingsTab: FC<{ settings: ReservationSetting, setSettings: React.
                     <div><label className="text-sm">Vége</label><input type="time" value={settings.bookableWindow?.to} onChange={e => handleTimeWindowChange('to', e.target.value)} className="w-full p-2 border rounded-md" step="300" /></div>
                 </div>
             </div>
-             {/* FIX: Replaced `kitchenOpen` and `barClose` with new start/end time properties. */}
              <div className="p-4 bg-white border rounded-lg">
                 <h3 className="font-bold mb-2">Konyha nyitvatartás</h3>
                  <div className="grid grid-cols-2 gap-4">
@@ -388,7 +423,18 @@ const ThemeStyleTab: FC<{ settings: ReservationSetting, setSettings: React.Dispa
     const theme = settings.theme!;
 
     const handleThemeChange = (key: keyof ThemeSettings, value: string) => {
-        setSettings(prev => prev ? ({...prev, theme: {...prev.theme!, [key]: value}}) : null);
+        setSettings(prev => {
+            if (!prev) return null;
+            const newTheme = { ...prev.theme!, [key]: value };
+
+            if (key === 'surface') {
+                const { primary, secondary } = getContrastingTextColors(value);
+                newTheme.textPrimary = primary;
+                newTheme.textSecondary = secondary;
+            }
+
+            return { ...prev, theme: newTheme };
+        });
     };
 
     const contrastWarning = useMemo(() => {
@@ -398,7 +444,7 @@ const ThemeStyleTab: FC<{ settings: ReservationSetting, setSettings: React.Dispa
         };
         const warnings: string[] = [];
         if (checkContrast(theme.surface, theme.textPrimary)) warnings.push("Felület / Elsődleges szöveg");
-        if (checkContrast(theme.background, theme.textPrimary)) warnings.push("Háttér / Elsődleges szöveg");
+        if (checkContrast(theme.background, theme.textPrimary)) warnings.push("Háttér / Szöveg (alacsony kontraszt a kártyákon kívül)");
         if (checkContrast(theme.primary, '#ffffff')) warnings.push("Gomb / Fehér szöveg");
         return warnings;
     }, [theme]);
@@ -414,10 +460,21 @@ const ThemeStyleTab: FC<{ settings: ReservationSetting, setSettings: React.Dispa
                     <ColorInput label="Felület (kártyák)" color={theme.surface} onChange={v => handleThemeChange('surface', v)} />
                     <ColorInput label="Háttér" color={theme.background} onChange={v => handleThemeChange('background', v)} />
                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <ColorInput label="Elsődleges szöveg" color={theme.textPrimary} onChange={v => handleThemeChange('textPrimary', v)} />
-                    <ColorInput label="Másodlagos szöveg" color={theme.textSecondary} onChange={v => handleThemeChange('textSecondary', v)} />
+                <div className="p-3 bg-gray-100 rounded-md">
+                    <p className="text-sm font-medium text-gray-800">Szövegszínek (automatikus)</p>
+                    <p className="text-xs text-gray-500">A szövegszínek a kártya háttérszínéhez ('Felület') igazodnak a jó olvashatóság érdekében.</p>
+                    <div className="mt-2 flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full border" style={{ backgroundColor: theme.textPrimary }}></div>
+                            <span className="text-sm">Elsődleges</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full border" style={{ backgroundColor: theme.textSecondary }}></div>
+                            <span className="text-sm">Másodlagos</span>
+                        </div>
+                    </div>
                 </div>
+
                 {contrastWarning.length > 0 && <div className="text-sm text-amber-700 bg-amber-100 p-2 rounded">Figyelem: alacsony kontraszt a következőknél: {contrastWarning.join(', ')}</div>}
                  <hr/>
                 <div>
@@ -465,7 +522,7 @@ const ThemePreview: FC<{theme: ThemeSettings}> = ({ theme }) => {
     return (
         <div className="h-full p-4 rounded" style={{ backgroundColor: theme.background, color: theme.textPrimary }}>
             <div className={`p-4 ${radiusClass} ${shadowClass}`} style={{ backgroundColor: theme.surface }}>
-                <h3 className={`font-bold text-lg ${fontBaseClass}`}>Élő előnézet</h3>
+                <h3 className={`font-bold text-lg ${fontBaseClass}`} style={{ color: theme.textPrimary }}>Élő előnézet</h3>
                 <p className={`mt-1 text-sm ${fontBaseClass}`} style={{ color: theme.textSecondary }}>Ez a kártya a beállításaidat tükrözi.</p>
                 <div className="flex gap-2 mt-4">
                     <button className={`py-2 px-4 font-bold text-white ${radiusClass}`} style={{ backgroundColor: theme.primary }}>Elsődleges gomb</button>
@@ -475,27 +532,5 @@ const ThemePreview: FC<{theme: ThemeSettings}> = ({ theme }) => {
         </div>
     );
 };
-
-// --- COLOR UTILITIES ---
-function hexToRgb(hex: string): {r: number, g: number, b: number} | null {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
-}
-function getLuminance(r: number, g: number, b: number): number {
-    const a = [r, g, b].map(v => {
-        v /= 255;
-        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-    });
-    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-}
-function getContrastRatio(color1: string, color2: string): number {
-    const rgb1 = hexToRgb(color1);
-    const rgb2 = hexToRgb(color2);
-    if (!rgb1 || !rgb2) return 1;
-    const lum1 = getLuminance(rgb1.r, rgb1.g, rgb1.b);
-    const lum2 = getLuminance(rgb2.r, rgb2.g, rgb2.b);
-    return (Math.max(lum1, lum2) + 0.05) / (Math.min(lum1, lum2) + 0.05);
-}
-
 
 export default ReservationSettingsModal;

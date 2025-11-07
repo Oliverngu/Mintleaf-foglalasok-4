@@ -290,8 +290,8 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
 
             setSubmittedData({ ...newReservation, date: selectedDate });
             setStep(3);
-        // FIX: Explicitly type caught error as unknown for type safety.
-        } catch (err: unknown) {
+        // FIX: Changed to use 'any' for error type to resolve potential toolchain issues.
+        } catch (err: any) {
             console.error("Error during reservation submission:", err);
             const errorMessage = (err instanceof Error) ? err.message : t.genericError;
             setError(errorMessage);
