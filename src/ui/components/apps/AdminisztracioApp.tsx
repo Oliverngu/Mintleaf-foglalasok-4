@@ -12,13 +12,13 @@ import JogosultsagokApp from './JogosultsagokApp';
 import NotificationSettings from './NotificationSettings';
 
 
-import UsersIcon from '../icons/UsersIcon';
-import InvitationIcon from '../icons/InvitationIcon';
-import BuildingIcon from '../icons/BuildingIcon';
-import BriefcaseIcon from '../icons/BriefcaseIcon';
-import ShieldIcon from '../icons/ShieldIcon';
-import SettingsIcon from '../icons/SettingsIcon';
-import CalendarOffIcon from '../icons/CalendarOffIcon';
+import UsersIcon from '../../../../components/icons/UsersIcon';
+import InvitationIcon from '../../../../components/icons/InvitationIcon';
+import BuildingIcon from '../../../../components/icons/BuildingIcon';
+import BriefcaseIcon from '../../../../components/icons/BriefcaseIcon';
+import ShieldIcon from '../../../../components/icons/ShieldIcon';
+import SettingsIcon from '../../../../components/icons/SettingsIcon';
+import CalendarOffIcon from '../../../../components/icons/CalendarOffIcon';
 import BellIcon from '../icons/BellIcon';
 
 interface AdminisztracioAppProps {

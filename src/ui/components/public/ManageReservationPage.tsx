@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Unit, Booking } from '../../../core/models/data';
 import { db, serverTimestamp } from '../../../core/firebase/config';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import LoadingSpinner from '../LoadingSpinner';
+import LoadingSpinner from '../../../../components/LoadingSpinner';
 import { translations } from '../../../lib/i18n';
-import CalendarIcon from '../icons/CalendarIcon';
+import CalendarIcon from '../../../../components/icons/CalendarIcon';
 
 type Locale = 'hu' | 'en';
 
@@ -52,7 +52,7 @@ const ManageReservationPage: React.FC<ManageReservationPageProps> = ({ token, al
                         setLocale(foundBooking.locale || 'hu');
                     }
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Error fetching reservation:", err);
                 setError('Hiba a foglalás betöltésekor. Ellenőrizze a linket, vagy próbálja meg később.');
             } finally {

@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import Login from './components/Login';
-import Register from './components/Register';
-import Dashboard from './components/Dashboard';
-import ReservationPage from './components/public/ReservationPage';
-import ManageReservationPage from './components/public/ManageReservationPage'; // Új import
-import { User, Request, Booking, Shift, Todo, Unit, RolePermissions, Permissions, demoUser, demoUnit, demoData, TimeEntry, Feedback, Poll } from './data/mockData';
-import { auth, db } from './firebase/config';
+// FIX: Corrected import paths to point to the active component versions in the src directory.
+import Login from './src/ui/components/Login';
+import Register from './src/ui/components/Register';
+import Dashboard from './src/ui/components/Dashboard';
+import ReservationPage from './src/ui/components/public/ReservationPage';
+import ManageReservationPage from './src/ui/components/public/ManageReservationPage';
+import { User, Request, Booking, Shift, Todo, Unit, RolePermissions, Permissions, demoUser, demoUnit, demoData, TimeEntry, Feedback, Poll } from './src/core/models/data';
+import { auth, db } from './src/core/firebase/config';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { collection, collectionGroup, doc, getDoc, getDocs, limit, onSnapshot, query, setDoc, where, orderBy } from 'firebase/firestore';
 import LoadingSpinner from './components/LoadingSpinner';
-import { UnitProvider } from './context/UnitContext';
+import { UnitProvider } from './src/ui/context/UnitContext';
 
 type AppState = 'login' | 'register' | 'dashboard' | 'loading' | 'public';
 type LoginMessage = { type: 'success' | 'error'; text: string };

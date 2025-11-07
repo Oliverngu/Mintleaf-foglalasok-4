@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo, FC } from 'react';
 import { ReservationSetting, ThemeSettings, GuestFormSettings, CustomSelectField } from '../../../core/models/data';
 import { db } from '../../../core/firebase/config';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import LoadingSpinner from '../LoadingSpinner';
-import ArrowUpIcon from '../icons/ArrowUpIcon';
-import ArrowDownIcon from '../icons/ArrowDownIcon';
-import TrashIcon from '../icons/TrashIcon';
-import PencilIcon from '../icons/PencilIcon';
+import LoadingSpinner from '../../../../components/LoadingSpinner';
+import ArrowUpIcon from '../../../../components/icons/ArrowUpIcon';
+import ArrowDownIcon from '../../../../components/icons/ArrowDownIcon';
+import TrashIcon from '../../../../components/icons/TrashIcon';
+import PencilIcon from '../../../../components/icons/PencilIcon';
 
 interface ReservationSettingsModalProps {
     unitId: string;

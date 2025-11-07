@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from '../../core/firebase/config';
 import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
-import MintLeafLogo from './icons/AppleLogo';
-import ArrowIcon from './icons/ArrowIcon';
-import EyeIcon from './icons/EyeIcon';
-import EyeSlashIcon from './icons/EyeSlashIcon';
+import MintLeafLogo from '../../../components/icons/AppleLogo';
+import ArrowIcon from '../../../components/icons/ArrowIcon';
+import EyeIcon from '../../../components/icons/EyeIcon';
+import EyeSlashIcon from '../../../components/icons/EyeSlashIcon';
 import { User } from '../../core/models/data';
 import { sendEmail, createRegistrationEmail } from '../../core/api/emailService';
 

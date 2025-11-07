@@ -3,7 +3,7 @@ import { User, Request, Booking, Shift, Todo, Contact, ContactCategory, Position
 import { db } from '../../core/firebase/config';
 
 // Import App Components
-import KerelemekApp from './apps/KerelemekApp';
+import { KerelemekApp } from './apps/KerelemekApp';
 import FoglalasokApp from './apps/FoglalasokApp';
 import { BeosztasApp } from './apps/BeosztasKeszitoApp';
 import UserSettingsApp from './apps/UserSettingsApp';
@@ -12,6 +12,7 @@ import AdminTodoApp from './apps/AdminTodoApp';
 import ContactsApp from './apps/ContactsApp';
 import TudastarApp from './apps/TudastarApp';
 import VelemenyekApp from './apps/VelemenyekApp';
+// FIX: Module '"file:///src/ui/components/apps/BerezesemApp"' has no default export.
 import BerezesemApp from './apps/BerezesemApp';
 import AdminisztracioApp from './apps/AdminisztracioApp';
 import HomeDashboard from './HomeDashboard';
@@ -43,6 +44,7 @@ import ArrowDownIcon from '../../../components/icons/ArrowDownIcon';
 import InvitationIcon from '../../../components/icons/InvitationIcon';
 import BuildingIcon from '../../../components/icons/BuildingIcon';
 import CalendarOffIcon from '../../../components/icons/CalendarOffIcon';
+import BellIcon from './icons/BellIcon';
 
 
 interface DashboardProps {

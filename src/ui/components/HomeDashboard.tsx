@@ -3,18 +3,18 @@ import { User, Request, Booking, Shift, Todo, TimeEntry, WidgetConfig, Feedback,
 import { db } from '../../core/firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import ClockInOutModal from './ClockInOutModal';
-import ClockInOutIcon from './icons/ClockInOutIcon';
-import PencilIcon from './icons/PencilIcon';
-import EyeIcon from './icons/EyeIcon';
-import EyeSlashIcon from './icons/EyeSlashIcon';
-import ArrowUpIcon from './icons/ArrowUpIcon';
-import ArrowDownIcon from './icons/ArrowDownIcon';
-import MoneyIcon from './icons/MoneyIcon';
-import ScheduleIcon from './icons/ScheduleIcon';
-import TodoIcon from './icons/TodoIcon';
-import CalendarIcon from './icons/CalendarIcon';
-import FeedbackIcon from './icons/FeedbackIcon';
-import PollsIcon from './icons/PollsIcon';
+import ClockInOutIcon from '../../../components/icons/ClockInOutIcon';
+import PencilIcon from '../../../components/icons/PencilIcon';
+import EyeIcon from '../../../components/icons/EyeIcon';
+import EyeSlashIcon from '../../../components/icons/EyeSlashIcon';
+import ArrowUpIcon from '../../../components/icons/ArrowUpIcon';
+import ArrowDownIcon from '../../../components/icons/ArrowDownIcon';
+import MoneyIcon from '../../../components/icons/MoneyIcon';
+import ScheduleIcon from '../../../components/icons/ScheduleIcon';
+import TodoIcon from '../../../components/icons/TodoIcon';
+import CalendarIcon from '../../../components/icons/CalendarIcon';
+import FeedbackIcon from '../../../components/icons/FeedbackIcon';
+import PollsIcon from '../../../components/icons/PollsIcon';
 
 interface HomeDashboardProps {
   currentUser: User;

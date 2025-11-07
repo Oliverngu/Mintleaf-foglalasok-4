@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User } from '../../../core/models/data';
 import { getUserNotificationSettings, updateUserNotificationSettings } from '../../../core/api/settingsService';
 import BellIcon from '../icons/BellIcon';
-import LoadingSpinner from '../LoadingSpinner';
+import LoadingSpinner from '../../../../components/LoadingSpinner';
 
 interface NotificationSettingsProps {
     currentUser: User;

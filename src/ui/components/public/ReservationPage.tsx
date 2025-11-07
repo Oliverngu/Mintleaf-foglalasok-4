@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Unit, ReservationSetting, User, ThemeSettings, GuestFormSettings, CustomSelectField } from '../../../core/models/data';
 import { db, Timestamp } from '../../../core/firebase/config';
 import { doc, getDoc, collection, addDoc, setDoc, query, where, getDocs } from 'firebase/firestore';
-import LoadingSpinner from '../LoadingSpinner';
-import CalendarIcon from '../icons/CalendarIcon';
-import CopyIcon from '../icons/CopyIcon'; // Új import
+import LoadingSpinner from '../../../../components/LoadingSpinner';
+import CalendarIcon from '../../../../components/icons/CalendarIcon';
+import CopyIcon from '../../../../components/icons/CopyIcon'; // Új import
 import { translations } from '../../../lib/i18n'; // Import a kiszervezett fájlból
 import { sendEmail, createGuestReservationConfirmationEmail, createUnitNewReservationNotificationEmail } from '../../../core/api/emailService';
 
@@ -251,7 +251,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
             setStep(3);
         } catch (err) {
             console.error("Error during reservation submission:", err);
-            // FIX: The error in a catch block is of type `unknown`. This requires a type check before it can be used as a string.
+            // FIX: The error `err` is of type `unknown` and cannot be accessed directly. Checking if it is an instance of Error before accessing the message property.
             const errorMessage = (err instanceof Error) ? err.message : t.genericError;
             setError(errorMessage);
         } finally {

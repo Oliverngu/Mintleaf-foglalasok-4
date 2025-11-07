@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import MintLeafLogo from './icons/AppleLogo';
-import ArrowIcon from './icons/ArrowIcon';
-import EyeIcon from './icons/EyeIcon';
-import EyeSlashIcon from './icons/EyeSlashIcon';
+import MintLeafLogo from '../../../components/icons/AppleLogo';
+import ArrowIcon from '../../../components/icons/ArrowIcon';
+import EyeIcon from '../../../components/icons/EyeIcon';
+import EyeSlashIcon from '../../../components/icons/EyeSlashIcon';
 import { auth, db } from '../../core/firebase/config';
 import { setPersistence, signInWithEmailAndPassword, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { collection, query, where, limit, getDocs } from 'firebase/firestore';

@@ -5,7 +5,7 @@ import { doc, getDoc, collection, addDoc, setDoc } from 'firebase/firestore';
 import LoadingSpinner from '../LoadingSpinner';
 import CalendarIcon from '../icons/CalendarIcon';
 import CopyIcon from '../icons/CopyIcon'; // Új import
-import { translations } from '../../lib/i18n'; // Import a kiszervezett fájlból
+import { translations } from '../../lib/i1n'; // Import a kiszervezett fájlból
 
 type Locale = 'hu' | 'en';
 
@@ -180,9 +180,9 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
             await setDoc(newReservationRef, newReservation);
             setSubmittedData({ ...newReservation, date: selectedDate });
             setStep(3);
-        // FIX: The error in a catch block is of type `unknown`. This requires a type check before it can be used as a string.
         } catch (err) {
             console.error("Error submitting reservation:", err);
+            // FIX: The error `err` is of type `unknown` and cannot be accessed directly. Checking if it is an instance of Error before accessing the message property.
             const errorMessage = err instanceof Error ? err.message : "Ismeretlen hiba történt.";
             setError(`Hiba történt a foglalás elküldése során: ${errorMessage}. Kérjük, próbálja meg később.`);
         } finally {

@@ -2,13 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Booking, User, Unit } from '../../../core/models/data';
 import { db, Timestamp, serverTimestamp } from '../../../core/firebase/config';
 import { collection, query, where, orderBy, onSnapshot, addDoc, doc, updateDoc } from 'firebase/firestore';
-import BookingIcon from '../icons/BookingIcon';
-import LoadingSpinner from '../LoadingSpinner';
+import BookingIcon from '../../../../components/icons/BookingIcon';
+import LoadingSpinner from '../../../../components/LoadingSpinner';
 import AddBookingModal from './AddBookingModal';
-import PlusIcon from '../icons/PlusIcon';
-import SettingsIcon from '../icons/SettingsIcon';
+import PlusIcon from '../../../../components/icons/PlusIcon';
+import SettingsIcon from '../../../../components/icons/SettingsIcon';
 import ReservationSettingsModal from './ReservationSettingsModal';
-import TrashIcon from '../icons/TrashIcon';
+import TrashIcon from '../../../../components/icons/TrashIcon';
 
 interface FoglalasokAppProps {
   currentUser: User;
