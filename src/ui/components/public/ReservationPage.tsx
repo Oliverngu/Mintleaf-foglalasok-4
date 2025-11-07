@@ -84,6 +84,10 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
     
     const [isSubmitting, setIsSubmitting] = useState(false);
     
+    // State for calendar month and daily headcounts
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [dailyHeadcounts, setDailyHeadcounts] = useState<Map<string, number>>(new Map());
+
     useEffect(() => {
         const browserLang = navigator.language.split('-')[0];
         if (browserLang === 'en') {
@@ -135,6 +139,43 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
         fetchSettings();
     }, [unit, unitId]);
 
+    // Fetch headcounts for the visible month
+    useEffect(() => {
+        if (!unitId || !settings?.dailyCapacity || settings.dailyCapacity <= 0) {
+            setDailyHeadcounts(new Map()); // Clear if no capacity limit
+            return;
+        }
+
+        const fetchHeadcounts = async () => {
+            const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+            const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59);
+
+            const q = query(
+                collection(db, 'units', unitId, 'reservations'),
+                where('startTime', '>=', Timestamp.fromDate(startOfMonth)),
+                where('startTime', '<=', Timestamp.fromDate(endOfMonth)),
+                where('status', 'in', ['pending', 'confirmed'])
+            );
+
+            try {
+                const querySnapshot = await getDocs(q);
+                const headcounts = new Map<string, number>();
+                querySnapshot.docs.forEach(doc => {
+                    const booking = doc.data();
+                    const dateKey = toDateKey(booking.startTime.toDate());
+                    const currentCount = headcounts.get(dateKey) || 0;
+                    headcounts.set(dateKey, currentCount + (booking.headcount || 0));
+                });
+                setDailyHeadcounts(headcounts);
+            } catch (err) {
+                console.error("Error fetching headcounts:", err);
+            }
+        };
+
+        fetchHeadcounts();
+    }, [unitId, currentMonth, settings?.dailyCapacity]);
+
+
     useEffect(() => {
         if (settings?.theme) {
             const root = document.documentElement;
@@ -181,7 +222,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
                 throw new Error(t.errorTimeWindow.replace('{start}', bookingStart).replace('{end}', bookingEnd));
             }
             
-            // Capacity validation
+            // Capacity validation (re-validate on submit for race conditions)
             if (settings.dailyCapacity && settings.dailyCapacity > 0) {
                 const dayStart = new Date(selectedDate);
                 dayStart.setHours(0, 0, 0, 0);
@@ -250,8 +291,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
 
             setSubmittedData({ ...newReservation, date: selectedDate });
             setStep(3);
-// FIX: Changed catch(err) to catch(err: any) to handle the 'unknown' type of the error object.
-        } catch (err: any) {
+        } catch (err) { // FIX: Changed catch(err: any) to catch(err) to handle the 'unknown' type of the error object.
             console.error("Error during reservation submission:", err);
             const errorMessage = (err instanceof Error) ? err.message : t.genericError;
             setError(errorMessage);
@@ -287,7 +327,17 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
                 <ProgressIndicator currentStep={step} t={t} />
                 <div className="relative overflow-hidden">
                     <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${(step - 1) * 100}%)` }}>
-                        <div className="w-full flex-shrink-0"><Step1Date settings={settings} onDateSelect={handleDateSelect} themeProps={themeClassProps} t={t} /></div>
+                        <div className="w-full flex-shrink-0">
+                            <Step1Date 
+                                settings={settings} 
+                                onDateSelect={handleDateSelect} 
+                                themeProps={themeClassProps} 
+                                t={t} 
+                                currentMonth={currentMonth}
+                                onMonthChange={setCurrentMonth}
+                                dailyHeadcounts={dailyHeadcounts}
+                            />
+                        </div>
                         <div className="w-full flex-shrink-0"><Step2Details selectedDate={selectedDate} formData={formData} setFormData={setFormData} onBack={() => { setStep(1); setError(''); }} onSubmit={handleSubmit} isSubmitting={isSubmitting} settings={settings} themeProps={themeClassProps} t={t} locale={locale} error={error} /></div>
                         <div className="w-full flex-shrink-0"><Step3Confirmation onReset={resetFlow} themeProps={themeClassProps} t={t} submittedData={submittedData} unit={unit} locale={locale} settings={settings} /></div>
                     </div>
@@ -297,8 +347,16 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
     );
 };
 
-const Step1Date: React.FC<{ settings: ReservationSetting, onDateSelect: (date: Date) => void, themeProps: any, t: any }> = ({ settings, onDateSelect, themeProps, t }) => {
-    const [currentMonth, setCurrentMonth] = useState(new Date());
+const Step1Date: React.FC<{ 
+    settings: ReservationSetting, 
+    onDateSelect: (date: Date) => void, 
+    themeProps: any, 
+    t: any,
+    currentMonth: Date,
+    onMonthChange: (date: Date) => void,
+    dailyHeadcounts: Map<string, number>
+}> = ({ settings, onDateSelect, themeProps, t, currentMonth, onMonthChange, dailyHeadcounts }) => {
+    
     const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
     const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
     const days = [];
@@ -313,18 +371,51 @@ const Step1Date: React.FC<{ settings: ReservationSetting, onDateSelect: (date: D
         <div className={`bg-[var(--color-surface)] p-6 ${themeProps.radiusClass} ${themeProps.shadowClass} border border-gray-100`}>
             <h2 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-3 text-center">{t.step1Title}</h2>
             <div className="flex justify-between items-center mb-4">
-                <button type="button" onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))} className="p-2 rounded-full hover:bg-gray-100">&lt;</button>
+                <button type="button" onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))} className="p-2 rounded-full hover:bg-gray-100">&lt;</button>
                 <h3 className="font-bold text-lg">{t.monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h3>
-                <button type="button" onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+                <button type="button" onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="p-2 rounded-full hover:bg-gray-100">&gt;</button>
             </div>
             <div className="grid grid-cols-7 gap-1 text-center font-semibold text-[var(--color-text-secondary)] text-sm mb-2">{t.dayNames.map((d: string) => <div key={d}>{d}</div>)}</div>
             <div className="grid grid-cols-7 gap-1">
                 {days.map((day, i) => {
                     if (!day) return <div key={`empty-${i}`}></div>;
                     const dateKey = toDateKey(day);
-                    const isDisabled = blackoutSet.has(dateKey) || day < today;
+                    
+                    const isBlackout = blackoutSet.has(dateKey);
+                    const isPast = day < today;
+                    let isFull = false;
+                    if (settings.dailyCapacity && settings.dailyCapacity > 0) {
+                        const currentHeadcount = dailyHeadcounts.get(dateKey) || 0;
+                        isFull = currentHeadcount >= settings.dailyCapacity;
+                    }
+                    const isDisabled = isBlackout || isPast || isFull;
+
+                    let buttonClass = `w-full p-1 h-12 flex items-center justify-center text-sm ${themeProps.radiusClass} transition-colors`;
+                    let titleText = '';
+
+                    if (isDisabled) {
+                        if (isFull) {
+                            buttonClass += ' bg-red-50 text-red-400 line-through cursor-not-allowed';
+                            titleText = t.errorCapacityFull;
+                        } else {
+                            buttonClass += ' text-gray-300 bg-gray-50 cursor-not-allowed';
+                        }
+                    } else {
+                        buttonClass += ' hover:bg-green-100';
+                    }
+                    
                     return (
-                        <div key={dateKey}><button type="button" onClick={() => onDateSelect(day)} disabled={isDisabled} className={`w-full p-1 h-12 flex items-center justify-center text-sm ${themeProps.radiusClass} transition-colors ${isDisabled ? 'text-gray-300 bg-gray-50 cursor-not-allowed' : 'hover:bg-green-100'}`} >{day.getDate()}</button></div>
+                        <div key={dateKey}>
+                            <button 
+                                type="button" 
+                                onClick={() => onDateSelect(day)} 
+                                disabled={isDisabled}
+                                title={titleText}
+                                className={buttonClass}
+                            >
+                                {day.getDate()}
+                            </button>
+                        </div>
                     );
                 })}
             </div>

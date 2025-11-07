@@ -19,6 +19,7 @@ const DEFAULT_THEME: ThemeSettings = {
     radius: 'lg', elevation: 'mid', typographyScale: 'M'
 };
 
+// FIX: Updated DEFAULT_GUEST_FORM to use the new `customSelects` structure.
 const DEFAULT_GUEST_FORM: GuestFormSettings = {
     customSelects: [
         { id: 'occasion', label: 'Alkalom', options: ['Brunch', 'Ebéd', 'Vacsora', 'Születésnap', 'Italozás', 'Egyéb'] },
@@ -93,7 +94,7 @@ const ReservationSettingsModal: FC<ReservationSettingsModalProps> = ({ unitId, o
         if (!settings) return;
         setIsSaving(true);
         try {
-            // Clean up old properties before saving
+            // FIX: Clean up old properties before saving to Firestore.
             const { occasionOptions, heardFromOptions, ...cleanGuestForm } = settings.guestForm as any;
             const settingsToSave = {
                 ...settings,
@@ -212,6 +213,7 @@ const GeneralSettingsTab: FC<{ settings: ReservationSetting, setSettings: React.
                     <div><label className="text-sm">Vége</label><input type="time" value={settings.bookableWindow?.to} onChange={e => handleTimeWindowChange('to', e.target.value)} className="w-full p-2 border rounded-md" step="300" /></div>
                 </div>
             </div>
+             {/* FIX: Replaced `kitchenOpen` and `barClose` with new start/end time properties. */}
              <div className="p-4 bg-white border rounded-lg">
                 <h3 className="font-bold mb-2">Konyha nyitvatartás</h3>
                  <div className="grid grid-cols-2 gap-4">

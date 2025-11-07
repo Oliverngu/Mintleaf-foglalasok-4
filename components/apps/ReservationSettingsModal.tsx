@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, FC } from 'react';
-import { ReservationSetting, ThemeSettings, GuestFormSettings } from '../../data/mockData';
+import { ReservationSetting, ThemeSettings, GuestFormSettings, CustomSelectField } from '../../data/mockData';
 import { db } from '../../firebase/config';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import LoadingSpinner from '../LoadingSpinner';
 import ArrowUpIcon from '../icons/ArrowUpIcon';
 import ArrowDownIcon from '../icons/ArrowDownIcon';
 import TrashIcon from '../icons/TrashIcon';
+import PencilIcon from '../icons/PencilIcon';
 
 interface ReservationSettingsModalProps {
     unitId: string;
@@ -18,9 +19,12 @@ const DEFAULT_THEME: ThemeSettings = {
     radius: 'lg', elevation: 'mid', typographyScale: 'M'
 };
 
+// FIX: Updated DEFAULT_GUEST_FORM to use the new `customSelects` structure.
 const DEFAULT_GUEST_FORM: GuestFormSettings = {
-    occasionOptions: ['Brunch', 'Ebéd', 'Vacsora', 'Születésnap', 'Italozás', 'Egyéb'],
-    heardFromOptions: ['Google', 'Facebook / Instagram', 'Ismerős ajánlása', 'Sétáltam az utcán', 'Egyéb'],
+    customSelects: [
+        { id: 'occasion', label: 'Alkalom', options: ['Brunch', 'Ebéd', 'Vacsora', 'Születésnap', 'Italozás', 'Egyéb'] },
+        { id: 'heardFrom', label: 'Hol hallottál rólunk?', options: ['Google', 'Facebook / Instagram', 'Ismerős ajánlása', 'Sétáltam az utcán', 'Egyéb'] }
+    ]
 };
 
 type SettingsTab = 'általános' | 'űrlap' | 'téma';
@@ -37,27 +41,49 @@ const ReservationSettingsModal: FC<ReservationSettingsModalProps> = ({ unitId, o
             const docRef = doc(db, 'reservation_settings', unitId);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
-                const data = docSnap.data();
+                const data = docSnap.data() as any; // Use any for migration
+                 let guestForm: GuestFormSettings = { ...DEFAULT_GUEST_FORM, ...(data.guestForm || {}) };
+
+                // Migration logic from old string arrays to new customSelects structure
+                if (!guestForm.customSelects) {
+                    guestForm.customSelects = [];
+                    if (data.guestForm?.occasionOptions?.length > 0) {
+                        guestForm.customSelects.push({ id: 'occasion', label: 'Alkalom', options: data.guestForm.occasionOptions });
+                    }
+                    if (data.guestForm?.heardFromOptions?.length > 0) {
+                        guestForm.customSelects.push({ id: 'heardFrom', label: 'Hol hallottál rólunk?', options: data.guestForm.heardFromOptions });
+                    }
+                }
+
+                // FIX: Updated state initialization to use new properties and handle migration from old ones.
                 setSettings({
                     id: unitId,
                     blackoutDates: data.blackoutDates || [],
                     dailyCapacity: data.dailyCapacity ?? null,
                     bookableWindow: data.bookableWindow || { from: '11:00', to: '23:00' },
-                    kitchenOpen: data.kitchenOpen ?? null,
-                    barClose: data.barClose ?? null,
-                    guestForm: { ...DEFAULT_GUEST_FORM, ...data.guestForm },
+                    kitchenStartTime: data.kitchenStartTime ?? data.kitchenOpen ?? null,
+                    kitchenEndTime: data.kitchenEndTime ?? null,
+                    barStartTime: data.barStartTime ?? null,
+                    barEndTime: data.barEndTime ?? data.barClose ?? null,
+                    guestForm,
                     theme: { ...DEFAULT_THEME, ...data.theme },
-                } as ReservationSetting);
+                    reservationMode: data.reservationMode || 'request',
+                    notificationEmails: data.notificationEmails || [],
+                });
             } else {
                 setSettings({
                     id: unitId,
                     blackoutDates: [],
                     dailyCapacity: null,
                     bookableWindow: { from: '11:00', to: '23:00' },
-                    kitchenOpen: null,
-                    barClose: null,
+                    kitchenStartTime: null,
+                    kitchenEndTime: null,
+                    barStartTime: null,
+                    barEndTime: null,
                     guestForm: DEFAULT_GUEST_FORM,
                     theme: DEFAULT_THEME,
+                    reservationMode: 'request',
+                    notificationEmails: [],
                 });
             }
             setLoading(false);
@@ -69,7 +95,15 @@ const ReservationSettingsModal: FC<ReservationSettingsModalProps> = ({ unitId, o
         if (!settings) return;
         setIsSaving(true);
         try {
-            await setDoc(doc(db, 'reservation_settings', unitId), settings, { merge: true });
+            // FIX: Clean up old properties before saving to Firestore.
+            const { occasionOptions, heardFromOptions, ...cleanGuestForm } = settings.guestForm as any;
+            const settingsToSave = {
+                ...settings,
+                guestForm: cleanGuestForm
+            };
+            
+            await setDoc(doc(db, 'reservation_settings', unitId), settingsToSave, { merge: true });
+
             alert('Beállítások mentve!');
             onClose();
         } catch (error) {
@@ -146,11 +180,19 @@ const GeneralSettingsTab: FC<{ settings: ReservationSetting, setSettings: React.
                     <div><label className="text-sm">Zárás</label><input type="time" value={settings.bookableWindow?.to} onChange={e => handleTimeWindowChange('to', e.target.value)} className="w-full p-2 border rounded-md" step="300" /></div>
                 </div>
             </div>
+             {/* FIX: Replaced `kitchenOpen` and `barClose` with new start/end time properties. */}
              <div className="p-4 bg-white border rounded-lg">
-                <h3 className="font-bold mb-2">Egyéb időpontok</h3>
+                <h3 className="font-bold mb-2">Konyha nyitvatartás</h3>
                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-sm">Konyha nyitás</label><input type="time" value={settings.kitchenOpen || ''} onChange={e => handleFieldChange('kitchenOpen', e.target.value || null)} className="w-full p-2 border rounded-md"/></div>
-                    <div><label className="text-sm">Bár zárás</label><input type="time" value={settings.barClose || ''} onChange={e => handleFieldChange('barClose', e.target.value || null)} className="w-full p-2 border rounded-md"/></div>
+                    <div><label className="text-sm">Nyitás</label><input type="time" value={settings.kitchenStartTime || ''} onChange={e => handleFieldChange('kitchenStartTime', e.target.value || null)} className="w-full p-2 border rounded-md"/></div>
+                    <div><label className="text-sm">Zárás</label><input type="time" value={settings.kitchenEndTime || ''} onChange={e => handleFieldChange('kitchenEndTime', e.target.value || null)} className="w-full p-2 border rounded-md"/></div>
+                </div>
+            </div>
+            <div className="p-4 bg-white border rounded-lg">
+                <h3 className="font-bold mb-2">Bár nyitvatartás</h3>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-sm">Nyitás</label><input type="time" value={settings.barStartTime || ''} onChange={e => handleFieldChange('barStartTime', e.target.value || null)} className="w-full p-2 border rounded-md"/></div>
+                    <div><label className="text-sm">Zárás</label><input type="time" value={settings.barEndTime || ''} onChange={e => handleFieldChange('barEndTime', e.target.value || null)} className="w-full p-2 border rounded-md"/></div>
                 </div>
             </div>
             <div className="p-4 bg-white border rounded-lg">
@@ -176,31 +218,88 @@ const GeneralSettingsTab: FC<{ settings: ReservationSetting, setSettings: React.
     );
 };
 
+// FIX: Replaced old FormOptionsTab with a new one that handles the `customSelects` array of objects.
 const FormOptionsTab: FC<{ settings: ReservationSetting, setSettings: React.Dispatch<React.SetStateAction<ReservationSetting | null>> }> = ({ settings, setSettings }) => {
-    const handleUpdateOptions = (key: keyof GuestFormSettings, newOptions: string[]) => {
-        setSettings(prev => prev ? ({ ...prev, guestForm: { ...prev.guestForm!, [key]: newOptions } }) : null);
+    const customSelects = settings.guestForm?.customSelects || [];
+
+    const updateCustomSelects = (newSelects: CustomSelectField[]) => {
+        setSettings(prev => prev ? { ...prev, guestForm: { ...prev.guestForm, customSelects: newSelects } } : null);
+    };
+
+    const handleUpdateField = (index: number, updatedField: CustomSelectField) => {
+        const newSelects = [...customSelects];
+        newSelects[index] = updatedField;
+        updateCustomSelects(newSelects);
+    };
+
+    const handleDeleteField = (index: number) => {
+        if (window.confirm('Biztosan törölni szeretnéd ezt az egész csoportot?')) {
+            const newSelects = customSelects.filter((_, i) => i !== index);
+            updateCustomSelects(newSelects);
+        }
+    };
+
+    const handleAddField = () => {
+        const newField: CustomSelectField = { id: Date.now().toString(), label: 'Új mező', options: ['Opció 1'] };
+        updateCustomSelects([...customSelects, newField]);
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <OptionManager 
-                title="Alkalom opciók"
-                options={settings.guestForm?.occasionOptions || []}
-                setOptions={(newOptions) => handleUpdateOptions('occasionOptions', newOptions)}
-                defaultOptions={DEFAULT_GUEST_FORM.occasionOptions}
-            />
+        <div className="space-y-6">
+            {customSelects.map((field, index) => (
+                <CustomFieldManager 
+                    key={field.id}
+                    field={field}
+                    onUpdate={(updatedField) => handleUpdateField(index, updatedField)}
+                    onDelete={() => handleDeleteField(index)}
+                />
+            ))}
+            <button onClick={handleAddField} className="w-full p-3 border-2 border-dashed rounded-lg text-gray-600 font-semibold hover:bg-gray-100">
+                + Új űrlap mező hozzáadása
+            </button>
+        </div>
+    );
+};
+
+const CustomFieldManager: FC<{field: CustomSelectField, onUpdate: (field: CustomSelectField)=>void, onDelete: ()=>void}> = ({ field, onUpdate, onDelete }) => {
+    return (
+        <div className="bg-white p-4 rounded-lg border">
+            <div className="flex justify-between items-center mb-3">
+                <input 
+                    value={field.label}
+                    onChange={e => onUpdate({ ...field, label: e.target.value })}
+                    className="font-bold text-lg p-1 -m-1 border-transparent hover:border-gray-300 focus:border-gray-400 rounded"
+                />
+                <button onClick={onDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-full"><TrashIcon className="h-5 w-5"/></button>
+            </div>
              <OptionManager 
-                title="Hol hallottál rólunk? opciók"
-                options={settings.guestForm?.heardFromOptions || []}
-                setOptions={(newOptions) => handleUpdateOptions('heardFromOptions', newOptions)}
-                defaultOptions={DEFAULT_GUEST_FORM.heardFromOptions}
+                options={field.options}
+                setOptions={(newOptions) => onUpdate({ ...field, options: newOptions })}
             />
         </div>
     );
 };
 
-const OptionManager: FC<{title: string, options: string[], setOptions: (opts: string[])=>void, defaultOptions: string[]}> = ({ title, options, setOptions, defaultOptions }) => {
+
+const OptionManager: FC<{options: string[], setOptions: (opts: string[])=>void}> = ({ options, setOptions }) => {
     const [newOption, setNewOption] = useState('');
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editingText, setEditingText] = useState('');
+
+    const startEditing = (index: number, text: string) => {
+        setEditingIndex(index);
+        setEditingText(text);
+    };
+
+    const saveEdit = (index: number) => {
+        if (editingText.trim()) {
+            const newOptions = [...options];
+            newOptions[index] = editingText.trim();
+            setOptions(newOptions);
+        }
+        setEditingIndex(null);
+        setEditingText('');
+    };
 
     const addOption = () => {
         if (newOption.trim() && !options.includes(newOption.trim())) {
@@ -222,23 +321,33 @@ const OptionManager: FC<{title: string, options: string[], setOptions: (opts: st
     };
 
     return (
-        <div className="bg-white p-4 rounded-lg border">
-            <h3 className="font-bold mb-3">{title}</h3>
+        <div>
             <div className="space-y-2 mb-4">
                 {options.map((opt, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-gray-50 p-2 rounded border">
-                        <span className="flex-grow">{opt}</span>
-                        <button onClick={() => moveOption(i, 'up')} disabled={i === 0} className="p-1 disabled:opacity-30"><ArrowUpIcon className="h-4 w-4" /></button>
-                        <button onClick={() => moveOption(i, 'down')} disabled={i === options.length - 1} className="p-1 disabled:opacity-30"><ArrowDownIcon className="h-4 w-4" /></button>
-                        <button onClick={() => removeOption(i)} className="p-1 text-red-500"><TrashIcon className="h-4 w-4" /></button>
+                    <div key={i} className="flex items-center gap-2 bg-gray-50 p-2 rounded border group">
+                        {editingIndex === i ? (
+                             <input 
+                                value={editingText}
+                                onChange={e => setEditingText(e.target.value)}
+                                onBlur={() => saveEdit(i)}
+                                onKeyDown={e => {if (e.key === 'Enter') {e.preventDefault(); saveEdit(i)}}}
+                                className="flex-grow bg-white p-1 rounded border border-blue-500"
+                                autoFocus
+                            />
+                        ) : (
+                            <span className="flex-grow p-1">{opt}</span>
+                        )}
+                        <button onClick={() => startEditing(i, opt)} className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100"><PencilIcon className="h-4 w-4"/></button>
+                        <button onClick={() => moveOption(i, 'up')} disabled={i === 0} className="p-1 disabled:opacity-30 text-gray-400 hover:text-gray-800 opacity-0 group-hover:opacity-100"><ArrowUpIcon className="h-4 w-4" /></button>
+                        <button onClick={() => moveOption(i, 'down')} disabled={i === options.length - 1} className="p-1 disabled:opacity-30 text-gray-400 hover:text-gray-800 opacity-0 group-hover:opacity-100"><ArrowDownIcon className="h-4 w-4" /></button>
+                        <button onClick={() => removeOption(i)} className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100"><TrashIcon className="h-4 w-4" /></button>
                     </div>
                 ))}
             </div>
             <div className="flex gap-2">
-                <input value={newOption} onChange={e => setNewOption(e.target.value)} placeholder="Új opció..." className="w-full p-2 border rounded" />
+                <input value={newOption} onChange={e => setNewOption(e.target.value)} placeholder="Új opció..." className="w-full p-2 border rounded" onKeyDown={e => {if (e.key === 'Enter') {e.preventDefault(); addOption();}}} />
                 <button onClick={addOption} className="bg-blue-600 text-white px-3 rounded font-semibold shrink-0">Hozzáad</button>
             </div>
-             <button onClick={() => setOptions(defaultOptions)} className="text-sm text-gray-500 hover:underline mt-4">Alapértékek visszaállítása</button>
         </div>
     );
 };
