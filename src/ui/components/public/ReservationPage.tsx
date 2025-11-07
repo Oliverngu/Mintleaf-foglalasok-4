@@ -293,8 +293,12 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
             setStep(3);
         } catch (err) { // FIX: Changed catch(err: any) to catch(err) to handle the 'unknown' type of the error object.
             console.error("Error during reservation submission:", err);
-            const errorMessage = (err instanceof Error) ? err.message : t.genericError;
-            setError(errorMessage);
+            // FIX: Explicitly handle the unknown error type to prevent TS2345.
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError(t.genericError);
+            }
         } finally {
             setIsSubmitting(false);
         }
