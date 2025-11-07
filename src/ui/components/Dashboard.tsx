@@ -19,30 +19,30 @@ import PollsApp from './polls/PollsApp';
 import ChatApp from './apps/ChatApp';
 
 // Import Icons
-import HomeIcon from './icons/HomeIcon';
-import CalendarIcon from './icons/CalendarIcon';
-import BookingIcon from './icons/BookingIcon';
-import ScheduleIcon from './icons/ScheduleIcon';
-import SettingsIcon from './icons/SettingsIcon';
-import LogoutIcon from './icons/LogoutIcon';
-import MenuIcon from './icons/MenuIcon';
-import MintLeafLogo from './icons/AppleLogo';
-import LoadingSpinner from './LoadingSpinner';
-import TodoIcon from './icons/TodoIcon';
-import AdminTodoIcon from './icons/AdminTodoIcon';
-import ContactsIcon from './icons/ContactsIcon';
-import BookIcon from './icons/BookIcon';
-import FeedbackIcon from './icons/FeedbackIcon';
-import MoneyIcon from './icons/MoneyIcon';
-import AdminIcon from './icons/AdminIcon';
-import PollsIcon from './icons/PollsIcon';
-import ChatIcon from './icons/ChatIcon';
+import HomeIcon from '../../../components/icons/HomeIcon';
+import CalendarIcon from '../../../components/icons/CalendarIcon';
+import BookingIcon from '../../../components/icons/BookingIcon';
+import ScheduleIcon from '../../../components/icons/ScheduleIcon';
+import SettingsIcon from '../../../components/icons/SettingsIcon';
+import LogoutIcon from '../../../components/icons/LogoutIcon';
+import MenuIcon from '../../../components/icons/MenuIcon';
+import MintLeafLogo from '../../../components/icons/AppleLogo';
+import LoadingSpinner from '../../../components/LoadingSpinner';
+import TodoIcon from '../../../components/icons/TodoIcon';
+import AdminTodoIcon from '../../../components/icons/AdminTodoIcon';
+import ContactsIcon from '../../../components/icons/ContactsIcon';
+import BookIcon from '../../../components/icons/BookIcon';
+import FeedbackIcon from '../../../components/icons/FeedbackIcon';
+import MoneyIcon from '../../../components/icons/MoneyIcon';
+import AdminIcon from '../../../components/icons/AdminIcon';
+import PollsIcon from '../../../components/icons/PollsIcon';
+import ChatIcon from '../../../components/icons/ChatIcon';
 import { useUnitContext } from '../context/UnitContext';
-import UserIcon from './icons/UserIcon';
-import ArrowDownIcon from './icons/ArrowDownIcon';
-import InvitationIcon from './icons/InvitationIcon';
-import BuildingIcon from './icons/BuildingIcon';
-import CalendarOffIcon from './icons/CalendarOffIcon';
+import UserIcon from '../../../components/icons/UserIcon';
+import ArrowDownIcon from '../../../components/icons/ArrowDownIcon';
+import InvitationIcon from '../../../components/icons/InvitationIcon';
+import BuildingIcon from '../../../components/icons/BuildingIcon';
+import CalendarOffIcon from '../../../components/icons/CalendarOffIcon';
 
 
 interface DashboardProps {
@@ -146,7 +146,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const hasPermission = (permission: keyof Permissions | 'canManageAdminPage'): boolean => {
     if (currentUser.role === 'Admin') return true;
     if (currentUser.role === 'Demo User') { 
-        // FIX: Ensure permission is a string before calling startsWith
         if (typeof permission === 'string') {
             return permission.startsWith('canView') || permission === 'canSubmitLeaveRequests';
         }

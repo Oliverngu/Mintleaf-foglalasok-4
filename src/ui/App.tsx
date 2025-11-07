@@ -8,7 +8,7 @@ import { User, Request, Booking, Shift, Todo, Unit, RolePermissions, Permissions
 import { auth, db } from '../core/firebase/config';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { collection, collectionGroup, doc, getDoc, getDocs, limit, onSnapshot, query, setDoc, where, orderBy } from 'firebase/firestore';
-import LoadingSpinner from './components/LoadingSpinner';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import { UnitProvider } from './context/UnitContext';
 
 type AppState = 'login' | 'register' | 'dashboard' | 'loading' | 'public';

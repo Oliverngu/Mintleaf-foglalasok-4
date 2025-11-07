@@ -2,11 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { Request, User } from '../../../core/models/data';
 import { db, Timestamp, serverTimestamp } from '../../../core/firebase/config';
 import { collection, doc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore';
-import CalendarIcon from '../../icons/CalendarIcon';
-import LoadingSpinner from '../../LoadingSpinner';
-import CheckIcon from '../../icons/CheckIcon';
-import XIcon from '../../icons/XIcon';
-import TrashIcon from '../../icons/TrashIcon';
+import CalendarIcon from '../../../../components/icons/CalendarIcon';
+import LoadingSpinner from '../../../../components/LoadingSpinner';
+import CheckIcon from '../../../../components/icons/CheckIcon';
+import XIcon from '../../../../components/icons/XIcon';
+import TrashIcon from '../../../../components/icons/TrashIcon';
 
 interface KerelemekAppProps {
   requests: Request[];
