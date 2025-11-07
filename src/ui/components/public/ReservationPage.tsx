@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+// FIX: Corrected import path to use the up-to-date data models from the core directory.
 import { Unit, ReservationSetting, User, ThemeSettings, GuestFormSettings, CustomSelectField } from '../../../core/models/data';
 import { db, Timestamp } from '../../../core/firebase/config';
 import { doc, getDoc, collection, addDoc, setDoc, query, where, getDocs } from 'firebase/firestore';
@@ -249,9 +250,9 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
 
             setSubmittedData({ ...newReservation, date: selectedDate });
             setStep(3);
-        } catch (err) {
+// FIX: Changed catch(err) to catch(err: any) to handle the 'unknown' type of the error object.
+        } catch (err: any) {
             console.error("Error during reservation submission:", err);
-            // FIX: The error `err` is of type `unknown` and cannot be accessed directly. Checking if it is an instance of Error before accessing the message property.
             const errorMessage = (err instanceof Error) ? err.message : t.genericError;
             setError(errorMessage);
         } finally {

@@ -104,18 +104,27 @@ export interface ThemeSettings {
     typographyScale: 'S' | 'M' | 'L';
 }
 
-export interface GuestFormSettings {
-    occasionOptions: string[];
-    heardFromOptions: string[];
+// FIX: Added CustomSelectField and updated GuestFormSettings to align with modern component props.
+export interface CustomSelectField {
+  id: string;
+  label: string;
+  options: string[];
 }
 
+export interface GuestFormSettings {
+    customSelects?: CustomSelectField[];
+}
+
+// FIX: Updated ReservationSetting to include more granular time properties, replacing deprecated ones.
 export interface ReservationSetting {
     id: string; // unitId
     blackoutDates: string[]; // "YYYY-MM-DD"
     dailyCapacity?: number | null;
     bookableWindow?: { from: string; to: string }; // "HH:mm"
-    kitchenOpen?: string | null;
-    barClose?: string | null;
+    kitchenStartTime?: string | null;
+    kitchenEndTime?: string | null;
+    barStartTime?: string | null;
+    barEndTime?: string | null;
     guestForm?: GuestFormSettings;
     theme?: ThemeSettings;
     schemaVersion?: number;

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Unit, ReservationSetting, User, ThemeSettings, GuestFormSettings } from '../../data/mockData';
+import { Unit, ReservationSetting, User, ThemeSettings, GuestFormSettings, CustomSelectField } from '../../data/mockData';
 import { db, Timestamp } from '../../firebase/config';
-import { doc, getDoc, collection, addDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, setDoc, query, where, getDocs } from 'firebase/firestore';
 import LoadingSpinner from '../LoadingSpinner';
 import CalendarIcon from '../icons/CalendarIcon';
 import CopyIcon from '../icons/CopyIcon'; // Új import
-import { translations } from '../../lib/i1n'; // Import a kiszervezett fájlból
+import { translations } from '../../lib/i18n'; // Import a kiszervezett fájlból
+import { sendEmail, createGuestReservationConfirmationEmail, createUnitNewReservationNotificationEmail } from '../../core/api/emailService';
 
 type Locale = 'hu' | 'en';
 
@@ -29,8 +30,7 @@ const DEFAULT_THEME: ThemeSettings = {
 };
 
 const DEFAULT_GUEST_FORM: GuestFormSettings = {
-    occasionOptions: ['Brunch', 'Ebéd', 'Vacsora', 'Születésnap', 'Italozás', 'Egyéb'],
-    heardFromOptions: [],
+    customSelects: [],
 };
 
 const ProgressIndicator: React.FC<{ currentStep: number, t: typeof translations['hu'] }> = ({ currentStep, t }) => {
@@ -70,7 +70,15 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
     const [locale, setLocale] = useState<Locale>('hu');
     
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [formData, setFormData] = useState({ name: '', headcount: '2', occasion: '', startTime: '', endTime: '', source: '', phone: '', email: '' });
+    const [formData, setFormData] = useState({ 
+        name: '', 
+        headcount: '2', 
+        startTime: '', 
+        endTime: '', 
+        phone: '', 
+        email: '',
+        customData: {} as Record<string, string>
+    });
     const [submittedData, setSubmittedData] = useState<any>(null);
     
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,20 +109,20 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
                 const docSnap = await getDoc(docRef);
                 const defaultSettings: ReservationSetting = { 
                     id: unitId, blackoutDates: [], bookableWindow: { from: '11:00', to: '23:00'}, 
-                    kitchenOpen: '22:00', barClose: '24:00', guestForm: DEFAULT_GUEST_FORM, theme: DEFAULT_THEME,
+                    kitchenStartTime: null, kitchenEndTime: null, barStartTime: null, barEndTime: null,
+                    guestForm: DEFAULT_GUEST_FORM, theme: DEFAULT_THEME,
+                    reservationMode: 'request', notificationEmails: [],
                 };
                 if (docSnap.exists()) {
-                    const dbData = docSnap.data();
+                    const dbData = docSnap.data() as any;
                     const finalSettings = { 
                         ...defaultSettings, ...dbData,
                         guestForm: { ...DEFAULT_GUEST_FORM, ...(dbData.guestForm || {}) },
                         theme: { ...DEFAULT_THEME, ...(dbData.theme || {}) },
                     };
                     setSettings(finalSettings);
-                    setFormData(prev => ({...prev, occasion: finalSettings.guestForm.occasionOptions[0] || ''}));
                 } else {
                     setSettings(defaultSettings);
-                    setFormData(prev => ({...prev, occasion: defaultSettings.guestForm.occasionOptions[0] || ''}));
                 }
             } catch (err) {
                 console.error("Error fetching reservation settings:", err);
@@ -138,7 +146,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
     
     const resetFlow = () => {
         setSelectedDate(null);
-        setFormData({ name: '', headcount: '2', occasion: settings?.guestForm?.occasionOptions[0] || '', startTime: '', endTime: '', source: '', phone: '', email: '' });
+        setFormData({ name: '', headcount: '2', startTime: '', endTime: '', phone: '', email: '', customData: {} });
         setStep(1);
     };
 
@@ -152,12 +160,54 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
         return cleaned;
     };
 
+    const t = translations[locale];
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedDate || !formData.startTime) return;
+        if (!selectedDate || !formData.startTime || !unit || !settings) return;
+        
         setIsSubmitting(true);
         setError('');
+
         try {
+            // --- VALIDATION ---
+            const requestedStartTime = formData.startTime;
+            const requestedHeadcount = parseInt(formData.headcount, 10);
+
+            // Time window validation
+            const { from: bookingStart, to: bookingEnd } = settings.bookableWindow || { from: '00:00', to: '23:59' };
+            if (requestedStartTime < bookingStart || requestedStartTime > bookingEnd) {
+                throw new Error(t.errorTimeWindow.replace('{start}', bookingStart).replace('{end}', bookingEnd));
+            }
+            
+            // Capacity validation
+            if (settings.dailyCapacity && settings.dailyCapacity > 0) {
+                const dayStart = new Date(selectedDate);
+                dayStart.setHours(0, 0, 0, 0);
+                const dayEnd = new Date(selectedDate);
+                dayEnd.setHours(23, 59, 59, 999);
+
+                const q = query(
+                    collection(db, 'units', unitId, 'reservations'),
+                    where('startTime', '>=', Timestamp.fromDate(dayStart)),
+                    where('startTime', '<=', Timestamp.fromDate(dayEnd)),
+                    where('status', 'in', ['pending', 'confirmed'])
+                );
+
+                const querySnapshot = await getDocs(q);
+                const currentHeadcount = querySnapshot.docs.reduce((sum, doc) => sum + (doc.data().headcount || 0), 0);
+                
+                if (currentHeadcount >= settings.dailyCapacity) {
+                    throw new Error(t.errorCapacityFull);
+                }
+
+                if (currentHeadcount + requestedHeadcount > settings.dailyCapacity) {
+                    const availableSlots = settings.dailyCapacity - currentHeadcount;
+                    throw new Error(t.errorCapacityLimited.replace('{count}', String(availableSlots)));
+                }
+            }
+
+            // --- SUBMISSION LOGIC ---
             const startDateTime = new Date(`${toDateKey(selectedDate)}T${formData.startTime}`);
             let endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000); // Default 2 hours duration
             if (formData.endTime) {
@@ -170,21 +220,40 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
             const newReservationRef = doc(collection(db, 'units', unitId, 'reservations'));
             const referenceCode = newReservationRef.id;
 
+            const reservationStatus = settings?.reservationMode === 'auto' ? 'confirmed' : 'pending';
+
             const newReservation = {
                 unitId, name: formData.name, headcount: parseInt(formData.headcount),
-                occasion: formData.occasion, source: formData.source,
                 startTime: Timestamp.fromDate(startDateTime), endTime: Timestamp.fromDate(endDateTime),
                 contact: { phoneE164: normalizePhone(formData.phone), email: formData.email.trim().toLowerCase() },
-                locale, status: 'pending' as const, createdAt: Timestamp.now(), referenceCode,
+                locale, status: reservationStatus as 'confirmed' | 'pending', createdAt: Timestamp.now(), referenceCode,
+                occasion: formData.customData['occasion'] || '',
+                source: formData.customData['heardFrom'] || '',
+                customData: formData.customData,
+                id: referenceCode, // Add id for email service
             };
             await setDoc(newReservationRef, newReservation);
+
+            // Send emails
+            if(newReservation.contact.email) {
+                const emailConfirmationParams = createGuestReservationConfirmationEmail(newReservation, unit);
+                if (emailConfirmationParams) {
+                    await sendEmail(emailConfirmationParams);
+                }
+            }
+
+            if (settings?.notificationEmails && settings.notificationEmails.length > 0) {
+                const unitNotificationParams = createUnitNewReservationNotificationEmail(newReservation, unit, settings.notificationEmails);
+                await sendEmail(unitNotificationParams);
+            }
+
             setSubmittedData({ ...newReservation, date: selectedDate });
             setStep(3);
-        } catch (err) {
-            console.error("Error submitting reservation:", err);
-            // FIX: The error `err` is of type `unknown` and cannot be accessed directly. Checking if it is an instance of Error before accessing the message property.
-            const errorMessage = err instanceof Error ? err.message : "Ismeretlen hiba történt.";
-            setError(`Hiba történt a foglalás elküldése során: ${errorMessage}. Kérjük, próbálja meg később.`);
+// FIX: Changed catch(err) to catch(err: any) to handle the 'unknown' type of the error object.
+        } catch (err: any) {
+            console.error("Error during reservation submission:", err);
+            const errorMessage = (err instanceof Error) ? err.message : t.genericError;
+            setError(errorMessage);
         } finally {
             setIsSubmitting(false);
         }
@@ -200,9 +269,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
         };
     }, [settings?.theme]);
     
-    const t = translations[locale];
-
-    if (error) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center p-4 text-center"><div className="bg-[var(--color-surface)] p-8 rounded-lg shadow-md"><h2 className="text-xl font-bold text-[var(--color-danger)]">Hiba</h2><p className="text-[var(--color-text-primary)] mt-2">{error}</p></div></div>;
+    if (error && step !== 2) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center p-4 text-center"><div className="bg-[var(--color-surface)] p-8 rounded-lg shadow-md"><h2 className="text-xl font-bold text-[var(--color-danger)]">Hiba</h2><p className="text-[var(--color-text-primary)] mt-2">{error}</p></div></div>;
     if (loading || !unit || !settings) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center"><LoadingSpinner /></div>;
     
     return (
@@ -220,8 +287,8 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ unitId, allUnits, cur
                 <div className="relative overflow-hidden">
                     <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${(step - 1) * 100}%)` }}>
                         <div className="w-full flex-shrink-0"><Step1Date settings={settings} onDateSelect={handleDateSelect} themeProps={themeClassProps} t={t} /></div>
-                        <div className="w-full flex-shrink-0"><Step2Details selectedDate={selectedDate} formData={formData} setFormData={setFormData} onBack={() => setStep(1)} onSubmit={handleSubmit} isSubmitting={isSubmitting} settings={settings} themeProps={themeClassProps} t={t} locale={locale} /></div>
-                        <div className="w-full flex-shrink-0"><Step3Confirmation onReset={resetFlow} themeProps={themeClassProps} t={t} submittedData={submittedData} unit={unit} locale={locale} /></div>
+                        <div className="w-full flex-shrink-0"><Step2Details selectedDate={selectedDate} formData={formData} setFormData={setFormData} onBack={() => { setStep(1); setError(''); }} onSubmit={handleSubmit} isSubmitting={isSubmitting} settings={settings} themeProps={themeClassProps} t={t} locale={locale} error={error} /></div>
+                        <div className="w-full flex-shrink-0"><Step3Confirmation onReset={resetFlow} themeProps={themeClassProps} t={t} submittedData={submittedData} unit={unit} locale={locale} settings={settings} /></div>
                     </div>
                 </div>
             </main>
@@ -264,9 +331,8 @@ const Step1Date: React.FC<{ settings: ReservationSetting, onDateSelect: (date: D
     );
 }
 
-const Step2Details: React.FC<any> = ({ selectedDate, formData, setFormData, onBack, onSubmit, isSubmitting, settings, themeProps, t, locale }) => {
-    const [errors, setErrors] = useState({ name: '', phone: '', email: '' });
-    const occasionOptions = settings?.guestForm?.occasionOptions || [];
+const Step2Details: React.FC<any> = ({ selectedDate, formData, setFormData, onBack, onSubmit, isSubmitting, settings, themeProps, t, locale, error }) => {
+    const [formErrors, setFormErrors] = useState({ name: '', phone: '', email: '' });
     
     const validateField = (name: string, value: string) => {
         if (!value.trim()) return t.errorRequired;
@@ -275,10 +341,20 @@ const Step2Details: React.FC<any> = ({ selectedDate, formData, setFormData, onBa
         return '';
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const handleStandardChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData((prev: any) => ({...prev, [name]: value }));
-        setErrors((prev: any) => ({ ...prev, [name]: validateField(name, value) }));
+        if (['name', 'phone', 'email'].includes(name)) {
+            setFormErrors((prev: any) => ({ ...prev, [name]: validateField(name, value) }));
+        }
+    };
+    
+    const handleCustomFieldChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData((prev: any) => ({
+            ...prev,
+            customData: { ...prev.customData, [name]: value },
+        }));
     };
 
     const isFormValid = useMemo(() => {
@@ -290,19 +366,34 @@ const Step2Details: React.FC<any> = ({ selectedDate, formData, setFormData, onBa
     return (
         <div className={`bg-[var(--color-surface)] p-6 ${themeProps.radiusClass} ${themeProps.shadowClass} border border-gray-100`}>
             <h2 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-3">{t.step2Title}</h2>
+            {error && <div className="p-3 mb-4 bg-red-100 text-red-800 font-semibold rounded-lg text-sm">{error}</div>}
+            {(settings.kitchenStartTime || settings.barStartTime) && (
+                <div className={`p-3 mb-4 bg-gray-50 border ${themeProps.radiusClass} text-sm text-gray-600`}>
+                    {settings.kitchenStartTime && <p><strong>{t.kitchenHours}:</strong> {settings.kitchenStartTime} - {settings.kitchenEndTime || 'Zárásig'}</p>}
+                    {settings.barStartTime && <p><strong>{t.barHours}:</strong> {settings.barStartTime} - {settings.barEndTime || 'Zárásig'}</p>}
+                </div>
+            )}
             <form onSubmit={onSubmit} className="space-y-4">
                 <input type="text" readOnly value={selectedDate.toLocaleDateString(locale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} className="w-full p-2 border rounded-lg bg-gray-100 text-center font-semibold"/>
-                <div><label className="block text-sm font-medium">{t.name}</label><input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full mt-1 p-2 border rounded-lg" required />{errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}</div>
-                <div><label className="block text-sm font-medium">{t.headcount}</label><input type="number" name="headcount" value={formData.headcount} onChange={handleChange} min="1" className="w-full mt-1 p-2 border rounded-lg" required /></div>
+                <div><label className="block text-sm font-medium">{t.name}</label><input type="text" name="name" value={formData.name} onChange={handleStandardChange} className="w-full mt-1 p-2 border rounded-lg" required />{formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}</div>
+                <div><label className="block text-sm font-medium">{t.headcount}</label><input type="number" name="headcount" value={formData.headcount} onChange={handleStandardChange} min="1" className="w-full mt-1 p-2 border rounded-lg" required /></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium">{t.email}</label><input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full mt-1 p-2 border rounded-lg" required />{errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}</div>
-                    <div><label className="block text-sm font-medium">{t.phone}</label><input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder={t.phonePlaceholder} className="w-full mt-1 p-2 border rounded-lg" required />{errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}</div>
+                    <div><label className="block text-sm font-medium">{t.email}</label><input type="email" name="email" value={formData.email} onChange={handleStandardChange} className="w-full mt-1 p-2 border rounded-lg" required />{formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}</div>
+                    <div><label className="block text-sm font-medium">{t.phone}</label><input type="tel" name="phone" value={formData.phone} onChange={handleStandardChange} placeholder={t.phonePlaceholder} className="w-full mt-1 p-2 border rounded-lg" required />{formErrors.phone && <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>}</div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium">{t.startTime}</label><input type="time" name="startTime" value={formData.startTime} onChange={handleChange} className="w-full mt-1 p-2 border rounded-lg" required /></div>
-                    <div><label className="block text-sm font-medium">{t.endTime}</label><input type="time" name="endTime" value={formData.endTime} onChange={handleChange} className="w-full mt-1 p-2 border rounded-lg" /></div>
+                    <div><label className="block text-sm font-medium">{t.startTime}</label><input type="time" name="startTime" value={formData.startTime} onChange={handleStandardChange} className="w-full mt-1 p-2 border rounded-lg" required min={settings.bookableWindow?.from} max={settings.bookableWindow?.to} /></div>
+                    <div><label className="block text-sm font-medium">{t.endTime}</label><input type="time" name="endTime" value={formData.endTime} onChange={handleStandardChange} className="w-full mt-1 p-2 border rounded-lg" min={formData.startTime} /></div>
                 </div>
-                <div><label className="block text-sm font-medium">{t.occasion}</label><select name="occasion" value={formData.occasion} onChange={handleChange} className="w-full mt-1 p-2 border rounded-lg bg-white"><option disabled value="">Válassz...</option>{occasionOptions.map((o: string) => <option key={o} value={o}>{o}</option>)}</select></div>
+                {settings.guestForm?.customSelects?.map((field: CustomSelectField) => (
+                    <div key={field.id}>
+                        <label className="block text-sm font-medium">{field.label}</label>
+                        <select name={field.id} value={formData.customData[field.id] || ''} onChange={handleCustomFieldChange} className="w-full mt-1 p-2 border rounded-lg bg-white" required>
+                             <option value="" disabled>Válassz...</option>
+                            {field.options.map((o: string) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                    </div>
+                ))}
                 <div className="flex justify-between items-center pt-4">
                     <button type="button" onClick={onBack} className={`bg-gray-200 text-gray-800 font-bold py-2 px-4 ${themeProps.radiusClass} hover:bg-gray-300`}>{t.back}</button>
                     <button type="submit" disabled={isSubmitting || !isFormValid} className={`text-white font-bold py-2 px-6 ${themeProps.radiusClass} disabled:bg-gray-400 disabled:cursor-not-allowed text-lg`} style={{ backgroundColor: 'var(--color-primary)' }}>{isSubmitting ? t.submitting : t.next}</button>
@@ -312,7 +403,7 @@ const Step2Details: React.FC<any> = ({ selectedDate, formData, setFormData, onBa
     )
 }
 
-const Step3Confirmation: React.FC<{ onReset: () => void, themeProps: any, t: any, submittedData: any, unit: Unit, locale: Locale }> = ({ onReset, themeProps, t, submittedData, unit, locale }) => {
+const Step3Confirmation: React.FC<{ onReset: () => void, themeProps: any, t: any, submittedData: any, unit: Unit, locale: Locale, settings: ReservationSetting }> = ({ onReset, themeProps, t, submittedData, unit, locale, settings }) => {
     const [copied, setCopied] = useState(false);
     
     const { googleLink, icsLink, manageLink } = useMemo(() => {
@@ -363,6 +454,7 @@ const Step3Confirmation: React.FC<{ onReset: () => void, themeProps: any, t: any
         <div className={`bg-[var(--color-surface)] p-8 ${themeProps.radiusClass} ${themeProps.shadowClass} border border-gray-100 text-center`}>
             <h2 className="text-2xl font-bold" style={{ color: 'var(--color-success)' }}>{t.step3Title}</h2>
             <p className="text-[var(--color-text-primary)] mt-4">{t.step3Body}</p>
+            <p className="text-sm text-gray-500 mt-2">{t.emailConfirmationSent}</p>
             
             {submittedData && (
                  <div className="mt-6 text-left bg-gray-50 p-4 rounded-lg border">
@@ -374,6 +466,11 @@ const Step3Confirmation: React.FC<{ onReset: () => void, themeProps: any, t: any
                     <p><strong>{t.startTime}:</strong> {submittedData.startTime.toDate().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</p>
                     <p><strong>{t.email}:</strong> {submittedData.contact.email}</p>
                     <p><strong>{t.phone}:</strong> {submittedData.contact?.phoneE164 ? maskPhone(submittedData.contact.phoneE164) : 'N/A'}</p>
+                     {Object.entries(submittedData.customData || {}).map(([key, value]) => {
+                        const field = settings.guestForm?.customSelects?.find(f => f.id === key);
+                        if (!field || !value) return null;
+                        return <p key={key}><strong>{field.label}:</strong> {value as string}</p>;
+                    })}
                  </div>
             )}
             
