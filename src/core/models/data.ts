@@ -309,7 +309,7 @@ export interface PollVote {
 }
 
 // --- DEMO MODE DATA ---
-export const demoUnit: Unit = { id: 'demo-unit-id', name: 'DEMO Üzlet', logoUrl: 'https://firebasestorage.googleapis.com/v0/b/mintleaf-74d27.appspot.com/o/unit_logos%2Fdemo-unit-id%2Flogo_demo.png?alt=media&token=1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p' };
+export const demoUnit: Unit = { id: 'demo-unit-id', name: 'DEMO Üzlet' };
 export const demoUser: User = {
     id: 'demo-user-id',
     name: 'demouser',

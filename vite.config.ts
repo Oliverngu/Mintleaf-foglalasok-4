@@ -11,12 +11,17 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.API_KEY': JSON.stringify('legacy-demo-no-api'),
+        'process.env.GEMINI_API_KEY': JSON.stringify('legacy-demo-no-api')
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          'firebase/app': path.resolve(__dirname, 'src/legacy-demo/app.ts'),
+          'firebase/firestore': path.resolve(__dirname, 'src/legacy-demo/firestore.ts'),
+          'firebase/auth': path.resolve(__dirname, 'src/legacy-demo/auth.ts'),
+          'firebase/storage': path.resolve(__dirname, 'src/legacy-demo/storage.ts'),
+          '@google/genai': path.resolve(__dirname, 'src/legacy-demo/genai.ts'),
         }
       }
     };

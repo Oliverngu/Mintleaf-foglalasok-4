@@ -1,0 +1,17 @@
+export const auth = { currentUser: { uid: 'legacy-manager', email: 'manager@example.invalid' } };
+export const getAuth = () => auth;
+export const onAuthStateChanged = (_auth: any, fn: any) => { let active = true; queueMicrotask(() => active && fn(auth.currentUser)); return () => { active = false; }; };
+export const signOut = async () => { location.reload(); };
+export const browserLocalPersistence = {};
+export const browserSessionPersistence = {};
+const disabled = async () => { throw Error('A legacy demóban nincs valódi fiókkezelés.'); };
+export const signInWithEmailAndPassword = disabled;
+export const createUserWithEmailAndPassword = disabled;
+export const sendEmailVerification = disabled;
+export const updateProfile = disabled;
+export const updateEmail = disabled;
+export const updatePassword = disabled;
+export const reauthenticateWithCredential = disabled;
+export const setPersistence = async () => {};
+export const EmailAuthProvider = { credential: () => ({}) };
+export type User = typeof auth.currentUser;
