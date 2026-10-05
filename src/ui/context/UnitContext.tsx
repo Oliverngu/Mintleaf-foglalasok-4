@@ -18,7 +18,7 @@ interface UnitProviderProps {
 export const UnitProvider: FC<UnitProviderProps> = ({ children, currentUser, allUnits }) => {
   
   const storageKey = useMemo(() => 
-    currentUser ? `mintleaf_selected_units_${currentUser.id}` : null
+    currentUser ? `mintleaf_legacy_before_selected_units_${currentUser.id}` : null
   , [currentUser]);
 
   const getInitialSelection = useCallback((): string[] => {
@@ -29,7 +29,9 @@ export const UnitProvider: FC<UnitProviderProps> = ({ children, currentUser, all
             if (savedState) {
                 const parsedState = JSON.parse(savedState);
                 if (Array.isArray(parsedState) && parsedState.every(item => typeof item === 'string')) {
-                    return parsedState;
+                    const available = allUnits.filter(unit => currentUser?.unitIds?.includes(unit.id)).map(unit => unit.id);
+                    const valid = parsedState.filter(id => available.includes(id));
+                    if (valid.length) return valid;
                 }
             }
         } catch (e) {
